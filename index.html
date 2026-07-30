@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FLAPPY COPILOT — a retro terminal game</title>
+<script>
+  (() => {
+    const param = new URLSearchParams(window.location.search).get("scoutTheme");
+    const theme =
+      param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", theme);
+  })();
+</script>
+<style>
+:root {
+  color-scheme: light;
+  --cp-bg: #f7f4ef;
+  --cp-bg-elevated: #fcfbf8;
+  --cp-surface: #ffffff;
+  --cp-surface-soft: #f5f5f5;
+  --cp-border: #dedede;
+  --cp-border-strong: #919191;
+  --cp-text: #242424;
+  --cp-text-muted: #5c5c5c;
+  --cp-text-soft: #6f6f6f;
+  --cp-accent: #b11f4b;
+  --cp-accent-hover: #9a1a41;
+  --cp-accent-soft: rgba(177, 31, 75, 0.08);
+  --cp-accent-fg: #ffffff;
+  --cp-success: #16a34a;
+  --cp-danger: #dc2626;
+  --cp-warning: #f59e0b;
+  --cp-link: #0078d4;
+  --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.12);
+  --cp-overlay: rgba(255, 255, 255, 0.8);
+  --cp-panel: rgba(255, 255, 255, 0.86);
+  --cp-panel-strong: rgba(255, 255, 255, 0.96);
+  --cp-sheen: rgba(255, 255, 255, 0.55);
+  --cp-highlight: rgba(177, 31, 75, 0.12);
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --cp-bg: #3d3b3a;
+  --cp-bg-elevated: #343231;
+  --cp-surface: #292929;
+  --cp-surface-soft: #2e2e2e;
+  --cp-border: #474747;
+  --cp-border-strong: #5f5f5f;
+  --cp-text: #dedede;
+  --cp-text-muted: #919191;
+  --cp-text-soft: #b0b0b0;
+  --cp-accent: #fd8ea1;
+  --cp-accent-hover: #fb7b91;
+  --cp-accent-soft: rgba(253, 142, 161, 0.14);
+  --cp-accent-fg: #1a1a1a;
+  --cp-success: #4ade80;
+  --cp-danger: #f87171;
+  --cp-warning: #fbbf24;
+  --cp-link: #4da6ff;
+  --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+  --cp-overlay: rgba(41, 41, 41, 0.88);
+  --cp-panel: rgba(41, 41, 41, 0.72);
+  --cp-panel-strong: rgba(41, 41, 41, 0.96);
+  --cp-sheen: rgba(255, 255, 255, 0.04);
+  --cp-highlight: rgba(253, 142, 161, 0.12);
+}
+
+/* ---- page chrome (themed) ---- */
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--cp-bg);
+  color: var(--cp-text);
+  font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  overflow: hidden;
+}
+.page-title {
+  font-family: Consolas, "Courier New", Courier, monospace;
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: var(--cp-text-muted);
+  text-transform: uppercase;
+}
+
+/* ---- retro terminal game frame ---- */
+#wrap {
+  position: relative;
+  height: min(88vh, 860px);
+  aspect-ratio: 480 / 640;
+  border-radius: 10px;
+  box-shadow: 0 0 2px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.14), 0 18px 48px rgba(0,0,0,0.28);
+}
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  border-radius: 10px;
+  background: #0d1117;
+}
+.scanlines {
+  position: absolute; inset: 0;
+  border-radius: 10px;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px,
+    rgba(0,0,0,0.18) 3px, rgba(0,0,0,0.18) 4px
+  );
+  mix-blend-mode: multiply;
+}
+.vignette {
+  position: absolute; inset: 0;
+  border-radius: 10px;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0) 62%, rgba(1,4,9,0.45) 100%);
+}
+.hint {
+  font-family: Consolas, "Courier New", Courier, monospace;
+  font-size: 12px;
+  color: var(--cp-text-muted);
+}
+.hint b { color: var(--cp-text); font-weight: 600; }
+</style>
+</head>
+<body>
+  <div class="page-title">~/MonasRepo [⎇ main] — flappy-copilot.exe</div>
+  <div id="wrap">
+    <canvas id="game" width="480" height="640"></canvas>
+    <div class="scanlines"></div>
+    <div class="vignette"></div>
+  </div>
+  <div class="hint"><b>SPACE</b> / click to flap · <b>M</b> mute · Ctrl+c Exit</div>
+
+<script>
+'use strict';
+const cvs = document.getElementById('game');
+const ctx = cvs.getContext('2d');
+const W = 480, H = 640, GROUND_H = 64;
+
+/* GitHub retro terminal palette (game content, per design cue) */
+const COL = {
+  bg: '#0d1117', black: '#010409',
+  panel: '#161b22', panelSoft: '#21262d', border: '#30363d',
+  text: '#c9d1d9', dim: '#8b949e', white: '#f0f6fc',
+  blue: '#58a6ff', purple: '#bc8cff', green: '#3fb950', red: '#f85149',
+  dotR: '#ff5f56', dotY: '#ffbd2e', dotG: '#27c93f',
+};
+const GREENS = ['#0e4429', '#006d32', '#26a641', '#39d353'];
+const MONO = 'Menlo, Consolas, "Courier New", monospace';
+
+/* Pixel Copilot robot (20x16) */
+const SPRITE = [
+  "........MMMM........",
+  ".......PPPPPP.......",
+  ".....bbbbbbbbbb.....",
+  "....BBBBBBBBBBBB....",
+  "...BBBBBBBBBBBBBB...",
+  "...BKKKKBBBBKKKKB...",
+  "...BKKKKBBBBKKKKB...",
+  "...BKKKKBBBBKKKKB...",
+  "...DDDDDDDDDDDDDD...",
+  ".PPKKKKKKKKKKKKKKPP.",
+  ".PPKKKKGGKKGGKKKKPP.",
+  ".ppKKKKGGKKGGKKKKpp.",
+  ".ppKKKKGGKKGGKKKKpp.",
+  ".ppKKKKKKKKKKKKKKpp.",
+  "..BBBBBBBBBBBBBBBB..",
+  "...dddddddddddddd...",
+];
+const PAL = {
+  M: '#e2a6ff', P: COL.purple, p: '#a371f7',
+  b: '#79c0ff', B: COL.blue, D: '#1f6feb', d: '#1158c7',
+  K: COL.black, G: '#7ee787',
+};
+
+function drawSprite(cx, cy, px, rot) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  if (rot) ctx.rotate(rot);
+  const w = SPRITE[0].length * px, h = SPRITE.length * px;
+  for (let r = 0; r < SPRITE.length; r++) {
+    for (let c = 0; c < SPRITE[r].length; c++) {
+      const ch = SPRITE[r][c];
+      if (ch === '.') continue;
+      ctx.fillStyle = PAL[ch];
+      ctx.fillRect(-w / 2 + c * px, -h / 2 + r * px, px, px);
+    }
+  }
+  ctx.restore();
+}
+
+/* ---- audio: chiptune blips ---- */
+let audioCtx = null, muted = false;
+function beep(freq, dur, type = 'square', vol = 0.06, slide = 0) {
+  if (muted) return;
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = type; o.frequency.value = freq;
+    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, freq + slide), audioCtx.currentTime + dur);
+    g.gain.setValueAtTime(vol, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + dur);
+  } catch (e) { /* audio unavailable */ }
+}
+const sfx = {
+  flap: () => beep(520, 0.09, 'square', 0.05, 260),
+  score: () => { beep(880, 0.07); setTimeout(() => beep(1320, 0.1), 70); },
+  die:  () => beep(300, 0.4, 'sawtooth', 0.07, -240),
+};
+
+/* ---- game state ---- */
+const BIRD_X = 130, PIPE_W = 72, GAP = 175, SPEED = 2.6, SPAWN_EVERY = 92;
+let state = 'menu';           // menu | play | dead
+let frame = 0, deadT = 0, shakeT = 0;
+let bird, pipes, particles, stars, groundCells, score, best;
+
+best = parseInt(localStorage.getItem('flappy-copilot-best') || '0', 10);
+
+function resetWorld() {
+  bird = { y: H / 2 - 40, vy: 0 };
+  pipes = [];
+  particles = [];
+  score = 0;
+  frame = 0;
+  groundCells = [];
+  const cols = Math.ceil(W / 16) + 2;
+  for (let r = 0; r < 2; r++) {
+    groundCells[r] = [];
+    for (let c = 0; c < cols; c++) {
+      groundCells[r][c] = GREENS[Math.floor(Math.random() * GREENS.length)];
+    }
+  }
+}
+function initStars() {
+  stars = [];
+  for (let i = 0; i < 60; i++) {
+    stars.push({
+      x: Math.random() * W, y: Math.random() * (H - GROUND_H),
+      s: Math.random() < 0.85 ? 2 : 3,
+      v: 0.15 + Math.random() * 0.5,
+      a: 0.12 + Math.random() * 0.3,
+    });
+  }
+}
+resetWorld();
+initStars();
+
+function flap() {
+  if (state === 'menu') { state = 'play'; resetWorld(); }
+  if (state === 'dead') {
+    if (deadT > 30) { state = 'play'; resetWorld(); }
+    return;
+  }
+  bird.vy = -7.8;
+  sfx.flap();
+  for (let i = 0; i < 6; i++) {
+    particles.push({
+      x: BIRD_X - 18, y: bird.y + 10,
+      vx: -1 - Math.random() * 2, vy: 1 + Math.random() * 2,
+      life: 22, col: Math.random() < 0.5 ? COL.green : COL.blue,
+    });
+  }
+}
+
+function die() {
+  state = 'dead';
+  deadT = 0;
+  shakeT = 16;
+  sfx.die();
+  if (score > best) {
+    best = score;
+    localStorage.setItem('flappy-copilot-best', String(best));
+  }
+}
+
+/* ---- update ---- */
+function update() {
+  frame++;
+  for (const st of stars) {
+    st.x -= st.v * (state === 'play' ? 1.6 : 0.5);
+    if (st.x < -4) { st.x = W + 4; st.y = Math.random() * (H - GROUND_H); }
+  }
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy; p.life--;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+  if (shakeT > 0) shakeT--;
+
+  if (state === 'menu') {
+    bird.y = H / 2 - 40 + Math.sin(frame / 22) * 10;
+    return;
+  }
+  if (state === 'dead') { deadT++; return; }
+
+  // play
+  bird.vy = Math.min(bird.vy + 0.48, 11);
+  bird.y += bird.vy;
+
+  if (frame % SPAWN_EVERY === 0) {
+    const margin = 110;
+    const gapY = margin + Math.random() * (H - GROUND_H - margin * 2);
+    const lanes = [COL.blue, COL.purple, COL.green, '#f0883e', COL.red]
+      .sort(() => Math.random() - 0.5).slice(0, 3);
+    const dotOff = [0, 1, 2].map(() => Math.floor(Math.random() * 30));
+    const merges = [];
+    const mergeCount = 1 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < mergeCount; i++) {
+      const a = Math.random() < 0.5 ? 0 : 1;
+      const dir = Math.random() < 0.5;
+      merges.push({
+        y: 50 + Math.random() * (H - GROUND_H - 100),
+        from: dir ? a : a + 1,
+        to: dir ? a + 1 : a,
+      });
+    }
+    pipes.push({ x: W + 10, gapY, passed: false, lanes, dotOff, merges });
+  }
+  for (let i = pipes.length - 1; i >= 0; i--) {
+    const p = pipes[i];
+    p.x -= SPEED;
+    if (!p.passed && p.x + PIPE_W < BIRD_X - 16) {
+      p.passed = true;
+      score++;
+      sfx.score();
+    }
+    if (p.x + PIPE_W < -20) pipes.splice(i, 1);
+  }
+
+  // collisions
+  const bx = BIRD_X - 18, by = bird.y - 15, bw = 36, bh = 30;
+  if (bird.y + 18 >= H - GROUND_H || bird.y - 18 <= 0) { die(); return; }
+  for (const p of pipes) {
+    const topH = p.gapY - GAP / 2, botY = p.gapY + GAP / 2;
+    const inX = bx + bw > p.x && bx < p.x + PIPE_W;
+    if (inX && (by < topH || by + bh > botY)) { die(); return; }
+  }
+}
+
+/* ---- draw helpers ---- */
+function text(str, x, y, size, col, align = 'left', weight = 'normal') {
+  ctx.font = `${weight} ${size}px ${MONO}`;
+  ctx.fillStyle = col;
+  ctx.textAlign = align;
+  ctx.textBaseline = 'top';
+  ctx.fillText(str, x, y);
+}
+function blockyTitle(str, x, y, size) {
+  ctx.font = `bold ${size}px ${MONO}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = COL.white;
+  ctx.fillText(str, x + 4, y + 4);
+  ctx.fillStyle = COL.blue;
+  ctx.fillText(str, x, y);
+}
+function cornerBrackets() {
+  ctx.strokeStyle = COL.dim;
+  ctx.lineWidth = 2;
+  const m = 14, L = 22;
+  const corners = [[m, m, 1, 1], [W - m, m, -1, 1], [m, H - GROUND_H - m, 1, -1], [W - m, H - GROUND_H - m, -1, -1]];
+  for (const [x, y, sx, sy] of corners) {
+    ctx.beginPath();
+    ctx.moveTo(x + L * sx, y);
+    ctx.lineTo(x, y);
+    ctx.lineTo(x, y + L * sy);
+    ctx.stroke();
+  }
+}
+function trafficDots(x, y) {
+  const dots = [COL.dotR, COL.dotY, COL.dotG];
+  dots.forEach((c, i) => {
+    ctx.fillStyle = c;
+    ctx.fillRect(x + i * 14, y, 8, 8);
+  });
+}
+function drawPipe(p) {
+  const topH = p.gapY - GAP / 2, botY = p.gapY + GAP / 2;
+  const segs = [
+    { y: 0, h: topH, tipAt: 'bottom' },
+    { y: botY, h: H - GROUND_H - botY, tipAt: 'top' },
+  ];
+  const laneX = [p.x + 14, p.x + 36, p.x + 58];
+  for (const s of segs) {
+    if (s.h <= 0) continue;
+    // branch lanes
+    for (let l = 0; l < 3; l++) {
+      ctx.strokeStyle = p.lanes[l];
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(laneX[l], s.y - 2);
+      ctx.lineTo(laneX[l], s.y + s.h + 2);
+      ctx.stroke();
+      // commit nodes
+      for (let yy = Math.floor(s.y / 30) * 30 + p.dotOff[l]; yy < s.y + s.h - 4; yy += 30) {
+        if (yy < s.y + 6) continue;
+        ctx.fillStyle = p.lanes[l];
+        ctx.beginPath();
+        ctx.arc(laneX[l], yy, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = COL.bg;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
+    // merge/branch connectors between adjacent lanes
+    for (const m of p.merges) {
+      if (m.y < s.y + 8 || m.y > s.y + s.h - 8) continue;
+      ctx.strokeStyle = p.lanes[m.to];
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(laneX[m.from], m.y - 14);
+      ctx.quadraticCurveTo(laneX[m.from], m.y, laneX[m.to], m.y);
+      ctx.stroke();
+    }
+    // HEAD node at the gap-facing tip
+    const ty = s.tipAt === 'bottom' ? s.y + s.h - 10 : s.y + 10;
+    ctx.fillStyle = COL.white;
+    ctx.beginPath();
+    ctx.arc(laneX[1], ty, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = p.lanes[1];
+    ctx.beginPath();
+    ctx.arc(laneX[1], ty, 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+function drawGround() {
+  const gy = H - GROUND_H;
+  ctx.fillStyle = COL.black;
+  ctx.fillRect(0, gy, W, GROUND_H);
+  ctx.fillStyle = COL.border;
+  ctx.fillRect(0, gy, W, 2);
+  const off = state === 'play' ? (frame * SPEED) % 16 : 0;
+  for (let r = 0; r < 2; r++) {
+    for (let c = 0; c < groundCells[r].length; c++) {
+      ctx.fillStyle = groundCells[r][c];
+      ctx.fillRect(c * 16 - off + 2, gy + 8 + r * 18, 12, 12);
+    }
+  }
+  text('~/MonasRepo [⎇ main]', 10, gy + 46, 12, COL.dim);
+  text(muted ? 'M unmute' : 'M mute', W - 10, gy + 46, 12, COL.dim, 'right');
+}
+function drawHUD() {
+  text('● commits: ' + score, 16, 16, 16, COL.blue);
+  text('best: ' + best, W - 16, 16, 16, COL.dim, 'right');
+  // big centered score, retro offset shadow
+  ctx.font = `bold 44px ${MONO}`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.fillStyle = COL.black;
+  ctx.fillText(String(score), W / 2 + 3, 43);
+  ctx.fillStyle = COL.white;
+  ctx.fillText(String(score), W / 2, 40);
+}
+function drawMenu() {
+  const cx = W / 2;
+  text('Welcome to GitHub', cx, 92, 18, COL.white, 'center');
+  blockyTitle('FLAPPY', cx, 128, 64);
+  blockyTitle('COPILOT', cx, 196, 64);
+  text('a retro terminal game', cx, 268, 14, COL.dim, 'center');
+
+  drawSprite(cx, 360, 6, Math.sin(frame / 26) * 0.08);
+
+  text('● Connected to GitHub MCP Server', 96, 442, 14, COL.text);
+  text('● Logged in as user: MonaLisa', 96, 466, 14, COL.text);
+  ctx.fillStyle = COL.blue;
+  ctx.fillRect(96, 444, 7, 7);
+  ctx.fillRect(96, 468, 7, 7);
+
+  // prompt line with blinking cursor
+  const prompt = '> press SPACE to flap';
+  text(prompt, cx, 512, 16, COL.green, 'center');
+  if (Math.floor(frame / 30) % 2 === 0) {
+    const pw = ctx.measureText(prompt).width;
+    ctx.fillStyle = COL.green;
+    ctx.fillRect(cx + pw / 2 + 6, 512, 10, 17);
+  }
+  text('avoid the merge conflicts · collect commits', cx, 544, 12, COL.dim, 'center');
+}
+function drawDead() {
+  if (deadT < 20) return;
+  const px = 60, py = 170, pw = W - 120, ph = 250;
+  ctx.fillStyle = 'rgba(1,4,9,0.55)';
+  ctx.fillRect(0, 0, W, H - GROUND_H);
+  ctx.fillStyle = COL.panel;
+  ctx.fillRect(px, py, pw, ph);
+  ctx.strokeStyle = COL.border;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(px, py, pw, ph);
+  ctx.fillStyle = COL.panelSoft;
+  ctx.fillRect(px, py, pw, 26);
+  trafficDots(px + 10, py + 9);
+  text('zsh — merge-conflict', px + 58, py + 6, 13, COL.dim);
+
+  text('MERGE CONFLICT!', W / 2, py + 48, 26, COL.red, 'center', 'bold');
+  text('you hit a breaking change', W / 2, py + 86, 14, COL.text, 'center');
+  text('commits this run: ' + score, W / 2, py + 122, 15, COL.blue, 'center');
+  text('best: ' + best + (score >= best && score > 0 ? '  ★ new record!' : ''), W / 2, py + 146, 15, COL.purple, 'center');
+  if (Math.floor(frame / 30) % 2 === 0) {
+    text('> press SPACE to resolve', W / 2, py + 192, 15, COL.green, 'center');
+  }
+}
+
+/* ---- main draw ---- */
+function draw() {
+  ctx.save();
+  if (shakeT > 0) {
+    ctx.translate((Math.random() - 0.5) * shakeT, (Math.random() - 0.5) * shakeT);
+  }
+  ctx.fillStyle = COL.bg;
+  ctx.fillRect(-10, -10, W + 20, H + 20);
+
+  for (const st of stars) {
+    ctx.globalAlpha = st.a;
+    ctx.fillStyle = COL.dim;
+    ctx.fillRect(st.x, st.y, st.s, st.s);
+  }
+  ctx.globalAlpha = 1;
+
+  cornerBrackets();
+  for (const p of pipes) drawPipe(p);
+
+  for (const pt of particles) {
+    ctx.globalAlpha = pt.life / 22;
+    ctx.fillStyle = pt.col;
+    ctx.fillRect(pt.x, pt.y, 4, 4);
+  }
+  ctx.globalAlpha = 1;
+
+  if (state !== 'menu') {
+    const rot = state === 'play' ? Math.max(-0.45, Math.min(1.1, bird.vy * 0.07)) : 0;
+    drawSprite(BIRD_X, bird.y, 3, rot);
+  }
+
+  drawGround();
+
+  if (state === 'menu') drawMenu();
+  if (state === 'play') drawHUD();
+  if (state === 'dead') { drawHUD(); drawDead(); }
+
+  ctx.restore();
+}
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
+
+/* ---- input ---- */
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
+    e.preventDefault();
+    flap();
+  } else if (e.code === 'KeyM') {
+    muted = !muted;
+  }
+});
+cvs.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  flap();
+});
+</script>
+</body>
+</html>
