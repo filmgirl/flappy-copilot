@@ -89,15 +89,22 @@ Pages used legacy branch publishing from `main` `/`, and `main` had no branch
 protection or rulesets. That publisher bypasses this workflow. Adding this code
 alone does **not** enforce deployment or merge gating.
 
-After review and merge, an administrator must:
+Coordinate this migration with the initial merge. **Do not merge first:** that
+would let the legacy publisher deploy the initial change without the new gate.
+The administrator, not the coding agent, must make the settings changes:
 
-1. Change **Settings > Pages > Build and deployment > Source** to **GitHub Actions**.
-2. Run the workflow on `main` and confirm the `github-pages` environment permits
-   deployments from `main` only; retain any desired reviewer approvals.
-3. Add a main-branch rule requiring pull requests and the **Cabinet compatibility**
-   status check (select it after the workflow first runs). Require up-to-date
-   branches and restrict bypasses as appropriate.
-4. Confirm a failing compatibility run cannot reach deployment and that the
+1. Open and review the PR, and run **Cabinet compatibility** successfully on its
+   candidate before merging.
+2. **Before merging**, change **Settings > Pages > Build and deployment > Source**
+   to **GitHub Actions**. Confirm the `github-pages` environment permits deployments
+   from `main` only; retain any desired reviewer approvals.
+3. Before merging, add a main-branch rule requiring pull requests and the
+   **Cabinet compatibility** status check (select it after the PR workflow runs).
+   Require up-to-date branches and restrict bypasses as appropriate.
+4. Merge only after those settings are in place, so the first new `main`
+   deployment uses the gated workflow. Manually dispatch the workflow on `main`
+   only if needed.
+5. Confirm a failing compatibility run cannot reach deployment and that the
    successful workflow's public smoke finishes green.
 
 `.github/workflows/pages.yml` builds/tests PR candidates (including forks) with
