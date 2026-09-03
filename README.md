@@ -32,9 +32,11 @@ source file or the already-published game**.
 The harness mounts the real [Commit Cabinet](https://github.com/filmgirl/arcade)
 at `/arcade/` and the candidate at `/flappy-copilot/` on the same origin, like
 GitHub Pages. Only Flappy's URL in the served `games.json` is rewritten; no tracked
-manifest is changed and no substitute cabinet is used. It checks exact candidate
-HTML bytes, cabinet source bytes, and the iframe's candidate URL before testing
-gameplay. No gameplay bridge or test hooks are needed: assertions read the
+manifest is changed and no substitute cabinet is used. The sibling-game
+navigation test intercepts Mona Maze with minimal local HTML solely to isolate
+iframe lifecycle behavior; it retains and checks the real sibling URL. It checks
+exact candidate HTML bytes, cabinet source bytes, and the iframe's candidate URL
+before testing gameplay. No gameplay bridge or test hooks are needed: assertions read the
 existing `state`, `bird`, `pipes`, and `muted` globals and actual canvas rendering.
 
 The server defaults to `http://127.0.0.1:4262`. Override with

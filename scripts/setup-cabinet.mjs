@@ -1,8 +1,18 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { cabinetRoot, cabinetSha, verifyCabinet } from './cabinet.mjs';
 
-if (!existsSync(cabinetRoot)) {
+let ready = false;
+if (existsSync(cabinetRoot)) {
+  try {
+    verifyCabinet();
+    ready = true;
+  } catch {
+    rmSync(cabinetRoot, { recursive: true, force: true });
+  }
+}
+
+if (!ready) {
   mkdirSync(cabinetRoot, { recursive: true });
   const git = (...args) => execFileSync('git', ['-C', cabinetRoot, ...args], { stdio: 'inherit' });
   git('init');

@@ -80,9 +80,14 @@ test('canvas fits narrow widths, touch works, and resizing preserves the game', 
 });
 
 test('switching games removes the old browsing context', async ({ page }) => {
+  await page.route('https://filmgirl.github.io/mona-maze/**', (route) => route.fulfill({
+    status: 200,
+    contentType: 'text/html',
+    body: '<!doctype html><title>Mona Maze</title>',
+  }));
   await page.getByRole('button', { name: 'Play Flappy Copilot', exact: true }).click();
   const oldFrame = await readyGame(page, candidate);
-  // Use the cabinet's real hash router and unchanged sibling URL; no sibling-game mock.
+  // Use the cabinet's real hash router and unchanged sibling URL.
   await page.evaluate(() => { location.hash = 'game/mona-maze'; });
   await expect(page.locator('#frame-host iframe')).toHaveAttribute('src', 'https://filmgirl.github.io/mona-maze/');
   expect(oldFrame.isDetached()).toBe(true);
