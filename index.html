@@ -129,6 +129,32 @@ canvas {
   color: var(--cp-text-muted);
 }
 .hint b { color: var(--cp-text); font-weight: 600; }
+.standalone .page-title,
+.standalone .hint { max-width: calc(100% - 24px); }
+.standalone #wrap {
+  flex-shrink: 0;
+  height: min(88vh, 860px, calc((100vw - 24px) * 4 / 3), calc(100vh - 92px));
+}
+.standalone .hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  column-gap: 16px;
+}
+.arcade-link:not([hidden]) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 8px;
+  color: var(--cp-link);
+  text-underline-offset: 3px;
+}
+.arcade-link:hover { color: var(--cp-text); }
+.arcade-link:focus-visible {
+  outline: 2px solid var(--cp-link);
+  outline-offset: 2px;
+}
 </style>
 </head>
 <body>
@@ -138,10 +164,19 @@ canvas {
     <div class="scanlines"></div>
     <div class="vignette"></div>
   </div>
-  <div class="hint"><b>SPACE</b> / click to flap · <b>M</b> mute · Ctrl+c Exit</div>
+  <div class="hint">
+    <span><b>SPACE</b> / click to flap · <b>M</b> mute · Ctrl+c Exit</span>
+    <a class="arcade-link" href="https://filmgirl.github.io/arcade/" hidden>GitHub Arcade</a>
+  </div>
 
 <script>
 'use strict';
+const arcadeLink = document.querySelector('.arcade-link');
+if (window.self === window.top) {
+  document.body.classList.add('standalone');
+  arcadeLink.hidden = false;
+}
+arcadeLink.addEventListener('keydown', (e) => e.stopPropagation());
 const cvs = document.getElementById('game');
 const ctx = cvs.getContext('2d');
 const W = 480, H = 640, GROUND_H = 64;
@@ -571,6 +606,7 @@ window.addEventListener('keydown', (e) => {
 });
 cvs.addEventListener('pointerdown', (e) => {
   e.preventDefault();
+  arcadeLink.blur();
   flap();
 });
 </script>

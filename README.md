@@ -4,6 +4,8 @@ A retro terminal-style Flappy Bird game — GitHub Copilot themed.
 
 **Play:** https://filmgirl.github.io/flappy-copilot/
 
+**More games:** [GitHub Arcade](https://filmgirl.github.io/arcade/)
+
 ## Controls
 - `SPACE` / click / tap — flap
 - `M` — mute
@@ -52,7 +54,10 @@ Coverage includes mouse and Enter launch, immediate and repeated Space input,
 moving pipes, M audio toggling, reload focus, return-card focus, old-frame cleanup
 on reload/switch/return, touch, 320/390px widths, landscape resizing, focus mode,
 native desktop fullscreen, and unavailable-fullscreen fallback with accessible
-exits. Desktop Chromium, mobile Chromium, and mobile WebKit run without retries;
+exits. Standalone navigation coverage checks the Arcade link, keyboard focus,
+input isolation, and responsive sizing. The link opens in the same tab and is
+hidden inside iframes, so cabinet embeds retain their existing content and layout.
+Desktop Chromium, mobile Chromium, and mobile WebKit run without retries;
 native fullscreen is intentionally desktop-only. Uncaught errors, console
 errors, failed requests, and HTTP asset errors fail tests. Only canceled
 navigations belonging to detached iframes are excluded during teardown.
