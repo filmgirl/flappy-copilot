@@ -33,6 +33,10 @@ for (const launch of ['mouse', 'keyboard']) {
       await page.keyboard.press('Enter');
     }
     const frame = await readyGame(page, candidate);
+    await expect(page.locator('#frame-host iframe')).toHaveAttribute(
+      'sandbox', 'allow-scripts allow-same-origin allow-pointer-lock');
+    await expect(frame.getByRole('link', { name: 'GitHub Arcade', includeHidden: true })).toBeHidden();
+    expect(await frame.locator('body').evaluate((body) => body.classList.contains('standalone'))).toBe(false);
     await startWithSpace(page, frame);
     for (let i = 0; i < 2; i++) {
       await frame.waitForFunction(() => state === 'play' && bird.y >= 270 && bird.vy > 0);

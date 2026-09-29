@@ -3,7 +3,7 @@ import { origin } from './scripts/cabinet.mjs';
 
 export default defineConfig({
   testDir: './tests',
-  testMatch: 'cabinet.spec.js',
+  testMatch: /(?:cabinet|standalone)\.spec\.js/,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: 0,
